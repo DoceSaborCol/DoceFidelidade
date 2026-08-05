@@ -65,16 +65,18 @@ export async function POST(request: NextRequest) {
 
         if (pointsToMigrate > 0) {
           // Creditar pontos legados no novo saldo
-          await supabase.rpc('loyalty.credit_points', {
-            p_customer_id: customerId,
-            p_store_id: storeId,
-            p_points: pointsToMigrate,
-            p_source_type: 'earn_legacy_migration',
-            p_description: 'Migração de pontos do programa de fidelidade antigo',
-            p_idempotency_key: `legacy_claim_${legacyProfile.id}`,
-          }).catch((err) => {
-            console.warn('Crédito de migração legada executado via fallback:', err.message)
-          })
+          try {
+            await supabase.rpc('loyalty.credit_points', {
+              p_customer_id: customerId,
+              p_store_id: storeId,
+              p_points: pointsToMigrate,
+              p_source_type: 'earn_legacy_migration',
+              p_description: 'Migração de pontos do programa de fidelidade antigo',
+              p_idempotency_key: `legacy_claim_${legacyProfile.id}`,
+            })
+          } catch (err: any) {
+            console.warn('Crédito de migração legada executado via fallback:', err?.message)
+          }
 
           // Marcar perfil legado como reivindicado (claimed)
           await supabase

@@ -67,14 +67,18 @@ export async function POST(request: NextRequest) {
 
         if (existingCustomer && legacyProfile) {
           // Retro-Match imediato!
-          await supabase.rpc('loyalty.credit_points', {
-            p_customer_id: existingCustomer.id,
-            p_store_id: 'b0000000-0000-0000-0000-000000000001',
-            p_points: points,
-            p_source_type: 'earn_legacy_migration',
-            p_description: 'Migração de pontos do programa de fidelidade antigo',
-            p_idempotency_key: `legacy_retro_claim_${legacyProfile.id}`,
-          }).catch(() => {})
+          try {
+            await supabase.rpc('loyalty.credit_points', {
+              p_customer_id: existingCustomer.id,
+              p_store_id: 'b0000000-0000-0000-0000-000000000001',
+              p_points: points,
+              p_source_type: 'earn_legacy_migration',
+              p_description: 'Migração de pontos do programa de fidelidade antigo',
+              p_idempotency_key: `legacy_retro_claim_${legacyProfile.id}`,
+            })
+          } catch (err: any) {
+            console.warn('Erro ao executar crédito retroativo:', err?.message)
+          }
 
           await supabase
             .from('legacy.customer_profiles')

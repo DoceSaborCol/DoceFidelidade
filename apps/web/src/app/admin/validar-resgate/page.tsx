@@ -116,8 +116,8 @@ export default function ValidarResgatePage() {
           </div>
         )}
 
-        {/* Resultado da Consulta (Status Queried) */}
-        {status === 'queried' && tokenData && (
+        {/* Resultado da Consulta (Status Queried ou Confirming) */}
+        {(status === 'queried' || status === 'confirming') && tokenData && (
           <div className="p-6 rounded-2xl bg-[var(--brand-surface)] border-2 border-[var(--brand-primary)] space-y-6">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
               <div>

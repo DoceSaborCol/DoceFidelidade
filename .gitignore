@@ -1,0 +1,60 @@
+# ─── Secrets e ambiente ──────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.staging
+.env.production
+!.env.example
+
+# ─── Node ────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# ─── Next.js ─────────────────────────────────────────────────────
+apps/web/.next/
+apps/web/out/
+apps/web/build/
+
+# ─── Turbo ───────────────────────────────────────────────────────
+.turbo/
+
+# ─── TypeScript ──────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── Testes ──────────────────────────────────────────────────────
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# ─── OS ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ─── IDE ─────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.iml
+
+# ─── Supabase local ──────────────────────────────────────────────
+packages/supabase/.branches/
+packages/supabase/.temp/
+
+# ─── Flutter ─────────────────────────────────────────────────────
+apps/mobile/.dart_tool/
+apps/mobile/build/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/*.g.dart
+
+# ─── Exports / uploads ───────────────────────────────────────────
+exports/
+uploads/
+tmp/

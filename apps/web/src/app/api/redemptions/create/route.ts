@@ -78,13 +78,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Tentar Reservar Pontos via FIFO em SQL
-    await supabase.rpc('loyalty.reserve_points_fifo', {
-      p_account_id: account.id,
-      p_points: points,
-      p_intent_id: intent?.id || '00000000-0000-0000-0000-000000000000',
-    }).catch((err) => {
+    try {
+      await supabase.rpc('loyalty.reserve_points_fifo', {
+        p_account_id: account.id,
+        p_points: points,
+        p_intent_id: intent?.id || '00000000-0000-0000-0000-000000000000',
+      })
+    } catch (err: any) {
       console.warn('Reserva FIFO executada em modo simulado:', err.message)
-    })
+    }
 
     return NextResponse.json({
       success: true,

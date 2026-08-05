@@ -125,17 +125,19 @@ export async function POST(request: NextRequest) {
 
     // 8. Creditar Pontos se Aprovado Automaticamente
     if (!isHighValue) {
-      await supabase.rpc('loyalty.credit_points', {
-        p_customer_id: customer.id,
-        p_store_id: storeId,
-        p_points: pointsGranted,
-        p_source_type: 'earn_purchase',
-        p_invoice_id: invoice?.id || null,
-        p_description: `Crédito NFC-e (Nota ${accessKey.substring(25, 34)})`,
-        p_idempotency_key: `nfce_${accessKey}`,
-      }).catch((err) => {
-        console.warn('RPC credit_points fallback:', err.message)
-      })
+      try {
+        await supabase.rpc('loyalty.credit_points', {
+          p_customer_id: customer.id,
+          p_store_id: storeId,
+          p_points: pointsGranted,
+          p_source_type: 'earn_purchase',
+          p_invoice_id: invoice?.id || null,
+          p_description: `Crédito NFC-e (Nota ${accessKey.substring(25, 34)})`,
+          p_idempotency_key: `nfce_${accessKey}`,
+        })
+      } catch (err: any) {
+        console.warn('RPC credit_points fallback:', err?.message)
+      }
     }
 
     if (isHighValue) {

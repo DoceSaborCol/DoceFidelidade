@@ -9,47 +9,47 @@ export default function EscanearPage() {
   const [manualMode, setManualMode] = useState(false)
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [successData, setSuccessData] = useState<{ points: number; value: number } | null>(null)
+  const [successData, setSuccessData] = useState<{ points: number; value: string; key: string } | null>(null)
 
-  // Validador simples de chave NFC-e (44 dígitos + modelo 65)
-  function validateAccessKey(key: string): boolean {
-    const cleaned = key.replace(/\D/g, '')
-    if (cleaned.length !== 44) return false
-    const model = cleaned.substring(20, 22)
-    return model === '65' // Modelo 65 = NFC-e
+  async function handleValidate(input: string) {
+    if (!input.trim()) {
+      setErrorMessage('Digite ou cole a chave de acesso da NFC-e.')
+      return
+    }
+
+    setStatus('processing')
+    setErrorMessage(null)
+
+    try {
+      const res = await fetch('/api/fiscal/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawInput: input }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setStatus('error')
+        setErrorMessage(data.error || 'Não foi possível validar a nota fiscal.')
+        return
+      }
+
+      setStatus('success')
+      setSuccessData({
+        points: data.pointsGranted,
+        value: data.totalValue,
+        key: data.accessKey,
+      })
+    } catch (err) {
+      setStatus('error')
+      setErrorMessage('Erro de conexão com o servidor. Tente novamente.')
+    }
   }
 
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const cleanedKey = accessKey.replace(/\D/g, '')
-
-    if (!cleanedKey) {
-      setErrorMessage('Digite ou cole os 44 dígitos da chave de acesso.')
-      return
-    }
-
-    if (cleanedKey.length !== 44) {
-      setErrorMessage(`A chave deve conter exatamente 44 dígitos (você digitou ${cleanedKey.length}).`)
-      return
-    }
-
-    if (!validateAccessKey(cleanedKey)) {
-      setErrorMessage('Esta chave não pertence a uma NFC-e (Modelo 65). Verifique a chave digitada.')
-      return
-    }
-
-    // Processar chave
-    setStatus('processing')
-    setErrorMessage(null)
-
-    setTimeout(() => {
-      // Simulação de validação fiscal bem sucedida (em produção chama Edge Function com CSC)
-      setStatus('success')
-      setSuccessData({
-        points: 3,
-        value: 24.90,
-      })
-    }, 1500)
+    handleValidate(accessKey)
   }
 
   return (
@@ -89,21 +89,25 @@ export default function EscanearPage() {
             <div className="space-y-1">
               <h2 className="text-2xl font-black text-emerald-700">+{successData.points} Pontos Creditados!</h2>
               <p className="text-xs text-[var(--text-secondary)]">
-                Nota fiscal de R$ {successData.value.toFixed(2)} validada com sucesso.
+                Nota fiscal de R$ {successData.value} validada com sucesso.
               </p>
+              <span className="text-[10px] font-mono text-[var(--text-secondary)] block">
+                Chave: {successData.key.substring(0, 10)}...{successData.key.substring(34)}
+              </span>
             </div>
             <div className="pt-4 flex flex-col gap-2">
               <Link
                 href="/carteira"
                 className="w-full py-3 px-4 rounded-2xl bg-[var(--brand-primary)] text-white font-bold text-sm text-center shadow-md hover:bg-[var(--brand-primary-dark)] transition-colors"
               >
-                Ver na Carteira
+                Ver Saldo na Carteira
               </Link>
               <button
                 onClick={() => {
                   setStatus('idle')
                   setAccessKey('')
                   setSuccessData(null)
+                  setErrorMessage(null)
                 }}
                 className="w-full py-2.5 px-4 rounded-2xl border border-[var(--border)] text-[var(--text-primary)] font-semibold text-xs text-center hover:bg-[var(--brand-surface)] transition-colors"
               >
@@ -166,7 +170,7 @@ export default function EscanearPage() {
                     rows={3}
                     value={accessKey}
                     onChange={(e) => setAccessKey(e.target.value)}
-                    placeholder="Cole ou digite aqui a chave de acesso impressa no seu cupom fiscal (ex: 32260802982922000177650010000184211000041300)"
+                    placeholder="Cole ou digite a chave de acesso (ex: 32260802982922000177650010000184211000041300)"
                     className="w-full p-3.5 rounded-2xl border border-[var(--border)] text-xs font-mono focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all resize-none"
                   />
                   <span className="text-[10px] text-[var(--text-secondary)] mt-1 block">

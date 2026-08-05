@@ -7,50 +7,78 @@ export default function ValidarResgatePage() {
   const [publicCode, setPublicCode] = useState('')
   const [status, setStatus] = useState<'idle' | 'querying' | 'queried' | 'confirming' | 'confirmed' | 'error'>('idle')
   const [tokenData, setTokenData] = useState<{
+    intentId?: string
     code: string
     customerMasked: string
     discountCents: number
+    discountFormatted: string
     pointsRequested: number
-    status: 'pending' | 'confirmed' | 'released' | 'expired'
+    status: string
   } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  function handleQuery(e: React.FormEvent) {
+  async function handleQuery(e: React.FormEvent) {
     e.preventDefault()
     if (!publicCode.trim()) return
 
     setStatus('querying')
     setMessage(null)
 
-    // Consulta sem consumir (Contexto Mestre 8.3)
-    setTimeout(() => {
-      if (publicCode.toUpperCase().includes('EXPIRED')) {
+    try {
+      const res = await fetch(`/api/admin/redemptions/query?code=${encodeURIComponent(publicCode)}`)
+      const data = await res.json()
+
+      if (!res.ok) {
         setStatus('error')
-        setMessage('Este código de resgate já expirou ou foi cancelado.')
+        setMessage(data.error || 'Código inválido ou não encontrado.')
         return
       }
 
       setStatus('queried')
       setTokenData({
-        code: publicCode.toUpperCase(),
-        customerMasked: 'M*** S**** (CPF: ***.***.123-**)',
-        discountCents: 800, // R$ 8,00
-        pointsRequested: 8,
-        status: 'pending',
+        intentId: data.intentId,
+        code: data.publicCode,
+        customerMasked: data.customerMasked,
+        discountCents: data.discountCents,
+        discountFormatted: data.discountFormatted,
+        pointsRequested: data.pointsRequested,
+        status: data.status,
       })
-    }, 800)
+    } catch (err) {
+      setStatus('error')
+      setMessage('Erro de conexão com o servidor ao consultar resgate.')
+    }
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!tokenData) return
 
     setStatus('confirming')
 
-    // Confirmação explícita atômica
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/admin/redemptions/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicCode: tokenData.code,
+          intentId: tokenData.intentId,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setStatus('error')
+        setMessage(data.error || 'Não foi possível confirmar o resgate.')
+        return
+      }
+
       setStatus('confirmed')
-      setMessage('Resgate de R$ 8,00 confirmado com sucesso! Aplicar desconto no PDV.')
-    }, 1000)
+      setMessage(data.message || `Resgate de ${tokenData.discountFormatted} confirmado com sucesso!`)
+    } catch (err) {
+      setStatus('error')
+      setMessage('Erro ao confirmar aplicação do desconto no PDV.')
+    }
   }
 
   return (
@@ -135,7 +163,7 @@ export default function ValidarResgatePage() {
               <div className="p-4 rounded-xl bg-white border border-[var(--border)]">
                 <span className="text-xs text-[var(--text-secondary)] block">Desconto a aplicar</span>
                 <span className="text-2xl font-black text-emerald-600">
-                  R$ {(tokenData.discountCents / 100).toFixed(2)}
+                  {tokenData.discountFormatted}
                 </span>
               </div>
               <div className="p-4 rounded-xl bg-white border border-[var(--border)]">
@@ -151,7 +179,7 @@ export default function ValidarResgatePage() {
                 type="button"
                 onClick={handleConfirm}
                 disabled={status === 'confirming'}
-                className="w-full py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {status === 'confirming' ? (
                   <>

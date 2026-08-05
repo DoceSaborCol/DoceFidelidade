@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { QrCode, Camera, Keyboard, AlertCircle, CheckCircle2, Loader2, Info, ArrowLeft } from 'lucide-react'
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect, useRef } from 'react'
+import { QrCode, Camera, Keyboard, AlertCircle, CheckCircle2, Loader2, Info, ArrowLeft, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
 export default function EscanearPage() {
@@ -9,7 +11,91 @@ export default function EscanearPage() {
   const [manualMode, setManualMode] = useState(false)
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const [successData, setSuccessData] = useState<{ points: number; value: string; key: string } | null>(null)
+
+  const html5QrCodeRef = useRef<any>(null)
+  const scannerContainerId = 'qr-reader'
+
+  // Inicializar leitor de câmera real quando estiver no modo câmera
+  useEffect(() => {
+    if (manualMode || status === 'success' || status === 'processing') {
+      stopCamera()
+      return
+    }
+
+    let isMounted = true
+
+    async function startCamera() {
+      setCameraError(null)
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode')
+
+        if (!isMounted) return
+
+        // Se já existe uma instância ativa, para antes de re-inicializar
+        if (html5QrCodeRef.current) {
+          try {
+            await html5QrCodeRef.current.stop()
+          } catch {
+            // ignorar se já parado
+          }
+        }
+
+        const html5QrCode = new Html5Qrcode(scannerContainerId)
+        html5QrCodeRef.current = html5QrCode
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } }
+
+        // Preferir câmera traseira (environment) em dispositivos móveis
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          config,
+          (decodedText: string) => {
+            // Sucesso na leitura do QR Code
+            if (isMounted) {
+              stopCamera()
+              handleValidate(decodedText)
+            }
+          },
+          () => {
+            // leitor em busca contínua, ignorar erros pontuais de enquadramento
+          }
+        )
+      } catch (err: any) {
+        console.warn('Erro ao inicializar câmera:', err)
+        if (isMounted) {
+          setCameraError(
+            'Não foi possível acessar a câmera do dispositivo. Verifique as permissões do navegador ou digite a chave manualmente.'
+          )
+        }
+      }
+    }
+
+    // Pequeno atraso para garantir que a div #qr-reader esteja no DOM
+    const timer = setTimeout(() => {
+      startCamera()
+    }, 300)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timer)
+      stopCamera()
+    }
+  }, [manualMode, status])
+
+  function stopCamera() {
+    if (html5QrCodeRef.current) {
+      try {
+        if (html5QrCodeRef.current.isScanning) {
+          html5QrCodeRef.current.stop()
+        }
+      } catch {
+        // ignorar se a câmera já estava parada
+      }
+      html5QrCodeRef.current = null
+    }
+  }
 
   async function handleValidate(input: string) {
     if (!input.trim()) {
@@ -145,19 +231,39 @@ export default function EscanearPage() {
               </button>
             </div>
 
+            {errorMessage && (
+              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
             {!manualMode ? (
-              /* Leitor de Câmera (Moldura UI) */
+              /* Leitor de Câmera Real (HTML5 QR Code) */
               <div className="space-y-4 text-center">
-                <div className="relative aspect-square max-w-xs mx-auto rounded-3xl bg-slate-900 overflow-hidden flex flex-col items-center justify-center p-6 border-4 border-[var(--brand-primary)]/30 shadow-inner">
-                  <div className="absolute inset-4 border-2 border-dashed border-white/60 rounded-2xl pointer-events-none animate-pulse" />
-                  <QrCode className="w-16 h-16 text-white/40 mb-3" />
-                  <p className="text-xs text-white/80 font-medium z-10 px-4">
-                    Posicione o QR Code da sua NFC-e dentro do enquadramento
-                  </p>
-                </div>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Ou alterne para a aba <strong className="text-[var(--text-primary)]">"Digitar Chave"</strong> para colar o código de 44 dígitos.
-                </p>
+                {cameraError ? (
+                  <div className="p-6 rounded-3xl bg-amber-50 border border-amber-200 space-y-3">
+                    <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
+                    <p className="text-xs text-amber-900 leading-relaxed">{cameraError}</p>
+                    <button
+                      type="button"
+                      onClick={() => setManualMode(true)}
+                      className="px-4 py-2 rounded-xl bg-[var(--brand-primary)] text-white text-xs font-bold shadow-xs hover:bg-[var(--brand-primary-dark)] transition-colors inline-flex items-center gap-1.5"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                      <span>Digitar Chave de 44 Dígitos</span>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative aspect-square max-w-xs mx-auto rounded-3xl overflow-hidden bg-black border-4 border-[var(--brand-primary)]/30 shadow-inner">
+                      <div id={scannerContainerId} className="w-full h-full" />
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      Aponte a câmera para o QR Code da nota fiscal impressa no seu cupom.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               /* Formulário Manual de 44 dígitos */
@@ -177,13 +283,6 @@ export default function EscanearPage() {
                     {accessKey.replace(/\D/g, '').length} / 44 dígitos
                   </span>
                 </div>
-
-                {errorMessage && (
-                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{errorMessage}</span>
-                  </div>
-                )}
 
                 <button
                   type="submit"

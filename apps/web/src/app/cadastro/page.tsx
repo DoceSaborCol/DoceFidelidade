@@ -6,10 +6,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { IceCream, User, Mail, Lock, ArrowRight, AlertCircle, Loader2, Phone } from 'lucide-react'
+import { formatCPF, validateCPF } from '@/lib/utils/cpf'
+import { IceCream, User, Mail, Lock, ArrowRight, AlertCircle, Loader2, Phone, CreditCard, Sparkles } from 'lucide-react'
 
 export default function CadastroPage() {
   const [fullName, setFullName] = useState('')
+  const [cpf, setCpf] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -19,9 +21,20 @@ export default function CadastroPage() {
   
   const router = useRouter()
 
+  function handleCpfChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setCpf(formatCPF(e.target.value))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
-    const supabase = createClient()
     e.preventDefault()
+
+    const rawCpf = cpf.replace(/\D/g, '')
+
+    if (!validateCPF(rawCpf)) {
+      setError('CPF inválido. Verifique os dígitos digitados.')
+      return
+    }
+
     if (!termsAccepted) {
       setError('Você precisa aceitar os Termos e a Política de Privacidade para se cadastrar.')
       return
@@ -31,6 +44,8 @@ export default function CadastroPage() {
     setError(null)
 
     try {
+      const supabase = createClient()
+
       // 1. Criar usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -38,6 +53,7 @@ export default function CadastroPage() {
         options: {
           data: {
             full_name: fullName,
+            cpf: rawCpf,
             phone,
           },
         },
@@ -49,7 +65,19 @@ export default function CadastroPage() {
       }
 
       if (authData.user) {
-        // Redirecionar para carteira
+        // 2. Chamar a API de cadastro para registrar perfil no banco e buscar pontos legados automaticamente
+        await fetch('/api/auth/register-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: authData.user.id,
+            fullName,
+            cpf: rawCpf,
+            email,
+            phone,
+          }),
+        })
+
         router.push('/carteira')
         router.refresh()
       }
@@ -72,7 +100,7 @@ export default function CadastroPage() {
           Criar sua conta no Doce Fidelidade
         </h2>
         <p className="text-xs text-[var(--text-secondary)]">
-          Cadastre-se para começar a juntar pontos e trocar por sobremesas
+          Informe seu CPF para vincular suas NFC-e e resgatar pontos antigos automaticamente
         </p>
       </div>
 
@@ -101,6 +129,26 @@ export default function CadastroPage() {
                   className="w-full pl-11 pr-4 py-3 rounded-2xl border border-[var(--border)] text-sm focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider mb-1.5">
+                CPF (Obrigatório para NFC-e e Pontos)
+              </label>
+              <div className="relative">
+                <CreditCard className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                <input
+                  type="text"
+                  required
+                  value={cpf}
+                  onChange={handleCpfChange}
+                  placeholder="000.000.000-00"
+                  className="w-full pl-11 pr-4 py-3 rounded-2xl border border-[var(--border)] text-sm font-mono focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all"
+                />
+              </div>
+              <span className="text-[10px] text-[var(--text-secondary)] mt-1 block">
+                O CPF é essencial para validação das notas fiscais e migração do programa antigo.
+              </span>
             </div>
 
             <div>
@@ -170,7 +218,7 @@ export default function CadastroPage() {
                 </Link>{' '}
                 e o{' '}
                 <Link href="#" className="font-semibold text-[var(--brand-primary)] hover:underline">
-                  Aviso de Privacidade
+                  Aviso de Privacidade LGPD
                 </Link>
                 .
               </label>
@@ -184,7 +232,7 @@ export default function CadastroPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Cadastrando...</span>
+                  <span>Criando Conta e Verificando Pontos...</span>
                 </>
               ) : (
                 <>

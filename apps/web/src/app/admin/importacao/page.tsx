@@ -4,20 +4,47 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileSpreadsheet, Upload, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
+import { FileSpreadsheet, Upload, ArrowLeft, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function AdminImportacaoPage() {
   const [file, setFile] = useState<File | null>(null)
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'success'>('idle')
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
+  const [resultMsg, setResultMsg] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleUpload(e: React.FormEvent) {
+  async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
     if (!file) return
 
     setStatus('uploading')
-    setTimeout(() => {
+    setError(null)
+
+    try {
+      const text = await file.text()
+
+      const res = await fetch('/api/admin/import-legacy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csvText: text,
+          batchName: file.name,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setStatus('error')
+        setError(data.error || 'Erro ao processar importação.')
+        return
+      }
+
       setStatus('success')
-    }, 1500)
+      setResultMsg(data.message)
+    } catch (err) {
+      setStatus('error')
+      setError('Erro de conexão ao enviar arquivo para o servidor.')
+    }
   }
 
   return (
@@ -37,17 +64,23 @@ export default function AdminImportacaoPage() {
       </div>
 
       <div className="bg-white rounded-3xl border border-[var(--border)] p-6 shadow-xs space-y-6">
+        {error && (
+          <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
         {status === 'success' ? (
           <div className="p-6 text-center space-y-3">
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
             <h3 className="font-bold text-base text-emerald-900">Arquivo importado com sucesso!</h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Os saldos legados foram registrados no schema `legacy.customer_profiles` e os clientes poderão reivindicar seus pontos pelo CPF.
-            </p>
+            <p className="text-xs text-[var(--text-secondary)]">{resultMsg}</p>
             <button
               onClick={() => {
                 setStatus('idle')
                 setFile(null)
+                setResultMsg(null)
               }}
               className="py-2.5 px-4 rounded-xl bg-[var(--brand-primary)] text-white text-xs font-bold"
             >
@@ -87,8 +120,17 @@ export default function AdminImportacaoPage() {
               disabled={!file || status === 'uploading'}
               className="w-full py-3.5 px-4 rounded-2xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <Upload className="w-4 h-4" />
-              <span>Processar e Importar Saldos Legados</span>
+              {status === 'uploading' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Processando e Buscando Matches por CPF...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>Processar e Importar Saldos Legados</span>
+                </>
+              )}
             </button>
           </form>
         )}

@@ -1,5 +1,15 @@
 import Link from 'next/link'
-import { QrCode, Gift, Sparkles, Award, ArrowRight, ShieldCheck, Instagram, ChevronRight } from 'lucide-react'
+import { QrCode, Gift, Sparkles, Award, ArrowRight, ShieldCheck, ChevronRight } from 'lucide-react'
+
+function InstagramIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+    </svg>
+  )
+}
 
 export default function Home() {
   return (
@@ -134,7 +144,7 @@ export default function Home() {
       <section className="p-6 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
         <div className="space-y-1 text-center sm:text-left">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-xs font-semibold">
-            <Instagram className="w-3.5 h-3.5" />
+            <InstagramIcon className="w-3.5 h-3.5" />
             <span>@docesaborcolatina</span>
           </div>
           <h3 className="text-lg font-bold">Siga a Doce Sabor no Instagram</h3>
@@ -152,3 +162,4 @@ export default function Home() {
     </div>
   )
 }
+

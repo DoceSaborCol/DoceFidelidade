@@ -12,88 +12,138 @@ export default function EscanearPage() {
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [isCameraActive, setIsCameraActive] = useState(false)
   const [successData, setSuccessData] = useState<{ points: number; value: string; key: string } | null>(null)
 
-  const html5QrCodeRef = useRef<any>(null)
-  const scannerContainerId = 'qr-reader'
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
 
-  // Inicializar leitor de câmera real quando estiver no modo câmera
+  // Iniciar fluxo nativo de câmera com navigator.mediaDevices.getUserMedia
   useEffect(() => {
     if (manualMode || status === 'success' || status === 'processing') {
-      stopCamera()
+      stopNativeCamera()
       return
     }
 
     let isMounted = true
 
-    async function startCamera() {
+    async function initCameraStream() {
       setCameraError(null)
-      try {
-        const { Html5Qrcode } = await import('html5-qrcode')
+      setIsCameraActive(false)
 
-        if (!isMounted) return
-
-        // Se já existe uma instância ativa, para antes de re-inicializar
-        if (html5QrCodeRef.current) {
-          try {
-            await html5QrCodeRef.current.stop()
-          } catch {
-            // ignorar se já parado
-          }
-        }
-
-        const html5QrCode = new Html5Qrcode(scannerContainerId)
-        html5QrCodeRef.current = html5QrCode
-
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } }
-
-        // Preferir câmera traseira (environment) em dispositivos móveis
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          config,
-          (decodedText: string) => {
-            // Sucesso na leitura do QR Code
-            if (isMounted) {
-              stopCamera()
-              handleValidate(decodedText)
-            }
-          },
-          () => {
-            // leitor em busca contínua, ignorar erros pontuais de enquadramento
-          }
-        )
-      } catch (err: any) {
-        console.warn('Erro ao inicializar câmera:', err)
+      // Verificar suporte do navegador para câmera
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         if (isMounted) {
           setCameraError(
-            'Não foi possível acessar a câmera do dispositivo. Verifique as permissões do navegador ou digite a chave manualmente.'
+            'Seu navegador ou dispositivo não suporta acesso à câmera via Web. Utilize a opção "Digitar Chave".'
+          )
+        }
+        return
+      }
+
+      try {
+        // Solicitar stream de vídeo da câmera traseira (ideal: environment)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        })
+
+        if (!isMounted) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
+        streamRef.current = stream
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          await videoRef.current.play()
+          setIsCameraActive(true)
+          startBarcodeDetection()
+        }
+      } catch (err: any) {
+        console.warn('Erro ao solicitar stream de câmera:', err)
+        if (!isMounted) return
+
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setCameraError(
+            'Permissão de câmera negada. Permita o acesso à câmera nas configurações do seu navegador e recarregue a página.'
+          )
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          setCameraError('Nenhuma câmera encontrada no seu dispositivo.')
+        } else {
+          setCameraError(
+            `Erro ao iniciar a câmera (${err.message || 'Falha de inicialização'}). Alterne para "Digitar Chave".`
           )
         }
       }
     }
 
-    // Pequeno atraso para garantir que a div #qr-reader esteja no DOM
-    const timer = setTimeout(() => {
-      startCamera()
-    }, 300)
+    initCameraStream()
 
     return () => {
       isMounted = false
-      clearTimeout(timer)
-      stopCamera()
+      stopNativeCamera()
     }
   }, [manualMode, status])
 
-  function stopCamera() {
-    if (html5QrCodeRef.current) {
+  function stopNativeCamera() {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+
+    setIsCameraActive(false)
+  }
+
+  // BarcodeDetector nativo dos navegadores modernos (Chrome, Edge, Android Webview)
+  function startBarcodeDetection() {
+    if (typeof window === 'undefined') return
+
+    // Se o navegador suporta BarcodeDetector nativo (W3C Web API)
+    if ('BarcodeDetector' in window) {
       try {
-        if (html5QrCodeRef.current.isScanning) {
-          html5QrCodeRef.current.stop()
+        const barcodeDetector = new (window as any).BarcodeDetector({
+          formats: ['qr_code'],
+        })
+
+        const detectLoop = async () => {
+          if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+            try {
+              const barcodes = await barcodeDetector.detect(videoRef.current)
+              if (barcodes && barcodes.length > 0) {
+                const qrValue = barcodes[0].rawValue
+                if (qrValue) {
+                  stopNativeCamera()
+                  handleValidate(qrValue)
+                  return
+                }
+              }
+            } catch {
+              // ignora falhas de detecção em frames isolados
+            }
+          }
+          animationFrameRef.current = requestAnimationFrame(detectLoop)
         }
-      } catch {
-        // ignorar se a câmera já estava parada
+
+        animationFrameRef.current = requestAnimationFrame(detectLoop)
+      } catch (err) {
+        console.warn('BarcodeDetector nativo indisponível:', err)
       }
-      html5QrCodeRef.current = null
     }
   }
 
@@ -239,7 +289,7 @@ export default function EscanearPage() {
             )}
 
             {!manualMode ? (
-              /* Leitor de Câmera Real (HTML5 QR Code) */
+              /* Feed de Vídeo Nativo do Navegador (getUserMedia) */
               <div className="space-y-4 text-center">
                 {cameraError ? (
                   <div className="p-6 rounded-3xl bg-amber-50 border border-amber-200 space-y-3">
@@ -256,11 +306,28 @@ export default function EscanearPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="relative aspect-square max-w-xs mx-auto rounded-3xl overflow-hidden bg-black border-4 border-[var(--brand-primary)]/30 shadow-inner">
-                      <div id={scannerContainerId} className="w-full h-full" />
+                    <div className="relative aspect-square max-w-xs mx-auto rounded-3xl overflow-hidden bg-slate-950 border-4 border-[var(--brand-primary)]/40 shadow-xl flex items-center justify-center">
+                      <video
+                        ref={videoRef}
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+
+                      {/* Moldura de leitor de QR Code */}
+                      <div className="absolute inset-8 border-2 border-dashed border-white/80 rounded-2xl pointer-events-none animate-pulse flex items-center justify-center">
+                        <div className="w-full h-0.5 bg-[var(--brand-primary)] opacity-60 shadow-lg animate-bounce" />
+                      </div>
+
+                      {!isCameraActive && (
+                        <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center gap-2 text-white p-4">
+                          <Loader2 className="w-8 h-8 animate-spin text-[var(--brand-primary)]" />
+                          <span className="text-xs font-medium">Iniciando Câmera...</span>
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-[var(--text-secondary)]">
-                      Aponte a câmera para o QR Code da nota fiscal impressa no seu cupom.
+                      Aponte a câmera para o QR Code da nota fiscal da Doce Sabor.
                     </p>
                   </>
                 )}

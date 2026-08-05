@@ -1,10 +1,12 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { 
   Users, Wallet, QrCode, Gift, BarChart3, Settings, ShieldCheck, 
-  TrendingUp, FileSpreadsheet, FileText, Sparkles, Clock, AlertTriangle, ArrowUpRight 
+  TrendingUp, FileSpreadsheet, Sparkles, ArrowUpRight, Ticket 
 } from 'lucide-react'
 
 export default function AdminDashboardPage() {
@@ -34,7 +36,7 @@ export default function AdminDashboardPage() {
               <span>Dashboard</span>
             </Link>
             <Link
-              href="#"
+              href="/admin/clientes"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-surface)] hover:text-[var(--text-primary)] transition-colors"
             >
               <Users className="w-4 h-4" />
@@ -45,35 +47,35 @@ export default function AdminDashboardPage() {
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-surface)] hover:text-[var(--text-primary)] transition-colors"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Validar Resgates</span>
+              <span>Validar Resgates (Caixa)</span>
             </Link>
             <Link
-              href="#"
+              href="/admin/cupons"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-surface)] hover:text-[var(--text-primary)] transition-colors"
             >
-              <QrCode className="w-4 h-4" />
-              <span>Cupons Fiscais</span>
+              <Ticket className="w-4 h-4" />
+              <span>Cupons & Promoções</span>
             </Link>
             <Link
-              href="#"
+              href="/admin/recompensas"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-surface)] hover:text-[var(--text-primary)] transition-colors"
             >
               <Gift className="w-4 h-4" />
               <span>Recompensas</span>
             </Link>
             <Link
-              href="#"
+              href="/admin/importacao"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-surface)] hover:text-[var(--text-primary)] transition-colors"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Importação Legada</span>
             </Link>
             <Link
-              href="#"
+              href="/admin/configuracoes"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--brand-surface)] hover:text-[var(--text-primary)] transition-colors"
             >
               <Settings className="w-4 h-4" />
-              <span>Configurações</span>
+              <span>Configurações & RBAC</span>
             </Link>
           </nav>
         </div>
@@ -167,18 +169,18 @@ export default function AdminDashboardPage() {
               href="/admin/validar-resgate"
               className="p-3.5 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md font-bold text-xs transition-colors flex items-center justify-between"
             >
-              <span>Validar Código de Caixa</span>
+              <span>Validar Código no Caixa</span>
               <ArrowUpRight className="w-4 h-4" />
             </Link>
             <Link
-              href="#"
+              href="/admin/clientes"
               className="p-3.5 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md font-bold text-xs transition-colors flex items-center justify-between"
             >
-              <span>Revisar Notas Pendentes</span>
+              <span>Consultar Clientes</span>
               <ArrowUpRight className="w-4 h-4" />
             </Link>
             <Link
-              href="#"
+              href="/admin/importacao"
               className="p-3.5 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md font-bold text-xs transition-colors flex items-center justify-between"
             >
               <span>Importar Dados Legados</span>

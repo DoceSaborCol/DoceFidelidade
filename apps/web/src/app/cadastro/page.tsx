@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -16,9 +18,9 @@ export default function CadastroPage() {
   const [error, setError] = useState<string | null>(null)
   
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
+    const supabase = createClient()
     e.preventDefault()
     if (!termsAccepted) {
       setError('Você precisa aceitar os Termos e a Política de Privacidade para se cadastrar.')

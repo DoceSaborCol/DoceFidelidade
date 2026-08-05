@@ -3,11 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Wallet, QrCode, Gift, User, IceCream } from 'lucide-react'
+import { NotificationsCenter } from '@/components/NotificationsCenter'
 
 export function Navigation() {
   const pathname = usePathname()
 
-  // Não exibir navegação pública/interna no login/cadastro se for tela limpa, ou exibir simples
   const isAuthPage = pathname === '/login' || pathname === '/cadastro'
   if (isAuthPage) return null
 
@@ -56,6 +56,7 @@ export function Navigation() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <NotificationsCenter />
             <Link
               href="/login"
               className="px-4 py-2 rounded-xl text-sm font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-surface)] transition-colors"
@@ -72,7 +73,7 @@ export function Navigation() {
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation (máximo 5 destinos conforme Contexto Mestre 7.1) */}
+      {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-[var(--border)] px-4 py-2 safe-area-pb shadow-lg">
         <div className="flex items-center justify-around">
           {navItems.map((item) => {

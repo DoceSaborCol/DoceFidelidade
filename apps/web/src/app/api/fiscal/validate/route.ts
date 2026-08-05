@@ -49,34 +49,25 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (!customer) {
-      // Garantir registro do cliente
-      const { data: newCustomer, error: createError } = await supabase
-        .from('identity.customers')
-        .insert({
-          auth_user_id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || 'Cliente Doce Sabor',
-          phone: user.user_metadata?.phone,
-        })
-        .select('id')
-        .single()
-
-      if (createError || !newCustomer) {
-        // Fallback: usar o próprio auth_user_id se tabela estiver restrita
-        customer = { id: user.id }
-      } else {
-        customer = newCustomer
-      }
+      customer = { id: user.id }
     }
 
-    // 4. Buscar Loja Piloto Colatina
-    const { data: store } = await supabase
-      .from('org.stores')
-      .select('id, organization_id')
-      .eq('slug', 'colatina')
-      .single()
+    const storeId = 'b0000000-0000-0000-0000-000000000001' // Doce Sabor Colatina
 
-    const storeId = store?.id || 'b0000000-0000-0000-0000-000000000001'
+    // 4. TRAVA ANTIFRAUDE: Limite de 3 escaneamentos por cliente nas últimas 24 horas
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { count: recentScansCount } = await supabase
+      .from('fiscal.scanned_invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', customer.id)
+      .gte('created_at', twentyFourHoursAgo)
+
+    if (recentScansCount && recentScansCount >= 3) {
+      return NextResponse.json(
+        { error: 'Limite diário atingido. Você pode cadastrar no máximo 3 notas fiscais por dia.' },
+        { status: 429 }
+      )
+    }
 
     // 5. Verificar Idempotência (Nota já escaneada?)
     const { data: existingInvoice } = await supabase
@@ -96,11 +87,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 6. Valor da Compra (se não extraído do QR Code, usa valor informado ou padrão)
-    const totalValueCents = parsed.totalValueCents || manualValueCents || 2490 // R$ 24,90 padrão se não informado
+    // 6. Valor da Compra e Regra Antifraude de Valor Atípico
+    const totalValueCents = parsed.totalValueCents || manualValueCents || 2490
     const eligibleCents = totalValueCents
-
-    // Cálculo oficial: R$ 8,00 = 1 Ponto
     const pointsGranted = Math.floor(eligibleCents / 800)
 
     if (pointsGranted <= 0) {
@@ -113,8 +102,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Se o valor da compra for atípico (> R$ 300,00), coloca em revisão manual pelo gerente
+    const isHighValue = totalValueCents > 30000
+    const statusResult = isHighValue ? 'pending_review' : 'approved'
+
     // 7. Registrar Nota Fiscal em `fiscal.scanned_invoices`
-    const { data: invoice, error: invoiceError } = await supabase
+    const { data: invoice } = await supabase
       .from('fiscal.scanned_invoices')
       .insert({
         customer_id: customer.id,
@@ -124,20 +117,15 @@ export async function POST(request: NextRequest) {
         total_value_cents: totalValueCents,
         eligible_value_cents: eligibleCents,
         points_granted: pointsGranted,
-        status: 'approved',
-        validated_at: new Date().toISOString(),
+        status: statusResult,
+        validated_at: isHighValue ? null : new Date().toISOString(),
       })
       .select('id')
       .single()
 
-    if (invoiceError) {
-      console.error('Erro ao registrar nota fiscal:', invoiceError)
-    }
-
-    // 8. Creditar Pontos Atomicamente via RPC ou Atualização Direta
-    const { data: creditResult, error: creditError } = await supabase.rpc(
-      'loyalty.credit_points',
-      {
+    // 8. Creditar Pontos se Aprovado Automaticamente
+    if (!isHighValue) {
+      await supabase.rpc('loyalty.credit_points', {
         p_customer_id: customer.id,
         p_store_id: storeId,
         p_points: pointsGranted,
@@ -145,11 +133,20 @@ export async function POST(request: NextRequest) {
         p_invoice_id: invoice?.id || null,
         p_description: `Crédito NFC-e (Nota ${accessKey.substring(25, 34)})`,
         p_idempotency_key: `nfce_${accessKey}`,
-      }
-    )
+      }).catch((err) => {
+        console.warn('RPC credit_points fallback:', err.message)
+      })
+    }
 
-    if (creditError) {
-      console.warn('RPC credit_points fallback para inserção direta:', creditError.message)
+    if (isHighValue) {
+      return NextResponse.json({
+        success: true,
+        accessKey,
+        pointsGranted: 0,
+        pendingReview: true,
+        totalValue: (totalValueCents / 100).toFixed(2),
+        message: 'Nota fiscal de alto valor recebida! Ela foi enviada para validação do gerente da loja.',
+      })
     }
 
     return NextResponse.json({

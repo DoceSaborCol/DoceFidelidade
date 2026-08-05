@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { verifyAdminPermission } from '@/lib/auth/rbac'
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Enforcement RBAC: Verificar se o chamador possui permissão de caixa, gerente ou owner
+    const rbac = await verifyAdminPermission(['caixa', 'gerente', 'owner'])
+    if (!rbac.authorized) {
+      return rbac.errorResponse!
+    }
+
     const body = await request.json()
     const { publicCode, intentId } = body
 
@@ -15,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // 1. Atualizar status da intenção para 'confirmed' em `redemption.discount_redemption_intents`
+    // 2. Atualizar status da intenção para 'confirmed' em `redemption.discount_redemption_intents`
     let query = supabase
       .from('redemption.discount_redemption_intents')
       .update({
